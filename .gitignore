@@ -31,4 +31,4 @@ go.work.sum
 # Private Files
 DOCS/ImplementionFlow.md
 DOCS/ProjectArchitecture.md
-DOCS/ProjectContacts.md
+DOCS/ProjectContracts.md

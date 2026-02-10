@@ -1,30 +1,21 @@
 package validators
 
-import "fmt"
+import (
+	"fmt"
 
-type JobStatus string
-
-const (
-	StatusQueued     JobStatus = "queued"
-	StatusDelayed    JobStatus = "delayed"
-	StatusProcessing JobStatus = "processing"
-	StatusRetryWait  JobStatus = "retry_wait"
-	StatusSuccess    JobStatus = "success"
-	StatusFailed     JobStatus = "failed"
-	StatusCancelled  JobStatus = "cancelled"
-	StatusDead       JobStatus = "dead"
+	"github.com/TheRealShek/VanguardQ/internal/models" // update to your actual module path
 )
 
-func IsValidStatus(s JobStatus) bool {
+func IsValidStatus(s models.JobStatus) bool {
 	switch s {
-	case StatusQueued,
-		StatusDelayed,
-		StatusProcessing,
-		StatusRetryWait,
-		StatusSuccess,
-		StatusFailed,
-		StatusCancelled,
-		StatusDead:
+	case models.JobQueued,
+		models.JobDelayed,
+		models.JobProcessing,
+		models.JobRetryWait,
+		models.JobSuccess,
+		models.JobFailed,
+		models.JobCancelled,
+		models.JobDead:
 		return true
 	default:
 		return false
@@ -41,38 +32,37 @@ failed      → []   (final)
 cancelled   → []   (final)
 dead        → []   (final)
 */
-var allowedTransitions = map[JobStatus][]JobStatus{
-	StatusQueued: {
-		StatusProcessing,
-		StatusCancelled,
+var allowedTransitions = map[models.JobStatus][]models.JobStatus{
+	models.JobQueued: {
+		models.JobProcessing,
+		models.JobCancelled,
 	},
-	StatusDelayed: {
-		StatusQueued,
-		StatusCancelled,
+	models.JobDelayed: {
+		models.JobQueued,
+		models.JobCancelled,
 	},
-	StatusProcessing: {
-		StatusSuccess,
-		StatusRetryWait,
-		StatusDead,
-		StatusFailed,
-		StatusCancelled,
+	models.JobProcessing: {
+		models.JobSuccess,
+		models.JobRetryWait,
+		models.JobDead,
+		models.JobFailed,
+		models.JobCancelled,
 	},
-	StatusRetryWait: {
-		StatusQueued,
+	models.JobRetryWait: {
+		models.JobQueued,
 	},
 	// terminal states
-	StatusSuccess:   {},
-	StatusFailed:    {},
-	StatusCancelled: {},
-	StatusDead:      {},
+	models.JobSuccess:   {},
+	models.JobFailed:    {},
+	models.JobCancelled: {},
+	models.JobDead:      {},
 }
 
-func CanTransition(from, to JobStatus) error {
+func CanTransition(from, to models.JobStatus) error {
 	allowed, ok := allowedTransitions[from]
 	if !ok {
 		return fmt.Errorf("unknown state: %s", from)
 	}
-	// We need to loop as `allowed` can have multiple Values
 	for _, s := range allowed {
 		if s == to {
 			return nil
@@ -81,9 +71,9 @@ func CanTransition(from, to JobStatus) error {
 	return fmt.Errorf("invalid transition %s → %s", from, to)
 }
 
-func IsFinalState(s JobStatus) bool {
+func IsFinalState(s models.JobStatus) bool {
 	switch s {
-	case StatusSuccess, StatusFailed, StatusCancelled, StatusDead:
+	case models.JobSuccess, models.JobFailed, models.JobCancelled, models.JobDead:
 		return true
 	default:
 		return false
