@@ -59,3 +59,57 @@ Daily technical progress on VanguardQ. Each entry documents changes, rationale, 
 **Notes:** Naming inconsistency noted (ValidateQueue vs IsValidPayload) — standardize to Validate\* prefix. Ready for Step 3.
 
 **References:** [ProjectArchitecture.md](ProjectArchitecture.md#job-lifecycle-exact-states), [ProjectArchitecture.md](ProjectArchitecture.md#anything-else-locked-decisions), [ProjectContacts.md](ProjectContacts.md#job-contract-final-fields)
+
+---
+
+#### Step 3: Redis Queue Adapter (In Progress) 🔄
+
+**Components:** `internal/queue/queue.go`, `internal/queue/redis.go`
+
+**Changes:** Defined Queue interface matching ProjectContracts.md (9 operations: Enqueue, EnqueueDelayed, Reserve, Ack, FailWithRetry, FailTerminal, MoveToDead, Cancel, Get). Initialized QueueService struct with Redis client and NewRedisClient() factory with env-based config (fallback: localhost:6379).
+
+**Purpose:** Abstract Redis operations behind clean interface. Decouple API/scheduler/worker from Redis internals. Enable testable, swappable queue implementations per architecture design.
+
+**Notes:** Interface is locked per ProjectContracts.md. QueueService method stubs remain—need to implement Redis command sequences (HSET, LPUSH, BRPOPLPUSH, ZADD, ZREM, etc.) per ProjectArchitecture.md. Next: serialization helpers (Job ↔ Redis hash), then Enqueue/EnqueueDelayed (simplest), then Reserve (most complex with inflight atomicity). All operations must maintain at-least-once delivery guarantee and proper state transitions.
+
+**References:** [ProjectArchitecture.md](ProjectArchitecture.md#redis-keys-and-data-model), [ProjectArchitecture.md](ProjectArchitecture.md#redis-commands-per-step), [ProjectContacts.md](ProjectContacts.md#queue-contract-redis-abstraction), [ImplementionFlow.md](ImplementionFlow.md#3-redis-queue-adapter)
+
+**Next Steps (Tomorrow):**
+
+1. **Implement serialization helpers** in `redis.go`: ✅
+   - `jobToHash()` — Convert Job struct to Redis hash fields (HSET args) ✅
+   - `hashToJob()` — Deserialize HGETALL result back to Job struct ✅
+   - Handle timestamp serialization (unix ms format) ✅
+
+2. **Implement Enqueue & EnqueueDelayed** (simplest operations):
+   - Enqueue: HSET job:{id} + LPUSH queue:{name}
+   - EnqueueDelayed: HSET job:{id} + ZADD delayed {scheduledAt_ts} {id}
+   - Both must set status to "queued" or "delayed" respectively
+
+3. **Implement Get** (needed for all other operations):
+   - HGETALL job:{id} → deserialize to Job
+
+4. **Implement Reserve** (most complex):
+   - BRPOPLPUSH queue:{name} queue:{name}:inflight {timeout}
+   - ZADD processing:{name} {deadline_ts} {job_id}
+   - LREM queue:{name}:inflight 1 {job_id}
+   - Update job status to "processing" in hash
+   - Handle timeout calculations correctly
+
+5. **Implement state transitions** (Ack, FailWithRetry, FailTerminal, MoveToDead, Cancel):
+   - Each must follow exact Redis command sequence from ProjectArchitecture.md
+   - Maintain proper status in job hash
+   - Always remove from processing:{name} when transitioning out
+
+6. **Write unit tests** for each method (can use embedded Redis or docker for testing)
+
+7. **Verify against ProjectArchitecture.md:**
+   - All Redis command sequences must match exactly
+   - All state transitions must be allowed per job_state validators
+   - At-least-once delivery guarantee maintained (ZADD processing before LREM inflight)
+
+**Blockers/Notes:** No blockers. Validators already in place. Just follow the locked commands in ProjectArchitecture.md step-by-step.
+
+```
+
+```
