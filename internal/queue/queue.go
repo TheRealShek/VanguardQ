@@ -2,9 +2,11 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/TheRealShek/VanguardQ/internal/models"
+	"github.com/google/uuid"
 )
 
 /*
@@ -34,8 +36,26 @@ type Queue interface {
 }
 
 func (qs *QueueService) Enqueue(ctx context.Context, job models.Job) error {
+	if job.ID == "" {
+		job.ID = uuid.NewString()
+	}
 
-	return nil
+	now := time.Now().UTC()
+	job.Status = models.JobQueued
+	job.CreatedAt = now
+
+	jobKey := "vanguard:job:" + job.ID
+	queueKey := "vanguard:queue:" + job.Queue
+
+	hash := jobToHash(job)
+
+	pipe := qs.rdb.TxPipeline()
+
+	pipe.HSet(ctx, jobKey, hash)
+	pipe.LPush(ctx, queueKey, job.ID)
+
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (qs *QueueService) EnqueueDelayed(ctx context.Context, job models.Job, runAt time.Time) error {
